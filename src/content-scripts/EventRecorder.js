@@ -16,6 +16,9 @@ export default class EventRecorder {
     this._screenShotMode = false
     this._isTopFrame = (window.location === window.parent.location)
     this._isRecordingClicks = true
+
+    // 如果id，转成属性形式；"#xxx xxx" => [id="xxx xxx"]
+    // this._dataAttribute = 'id'
   }
 
   boot () {
@@ -93,6 +96,18 @@ export default class EventRecorder {
     }
   }
 
+  filterClassName = (className) => {
+    if (className && (
+      className.includes('active') || className.includes('__') || className.includes('selected') || className.includes('focused')
+    )) {
+      return false
+    }
+    return true
+  }
+
+  // id 都不要，因为有些id写的不规范，不能直接调用querySelector
+  filterIdName = () => false;
+
   _recordEvent (e) {
     if (this._previousEvent && this._previousEvent.timeStamp === e.timeStamp) return
     this._previousEvent = e
@@ -102,9 +117,8 @@ export default class EventRecorder {
     try {
       const optimizedMinLength = (e.target.id) ? 2 : 10 // if the target has an id, use that instead of multiple other selectors
       const selector = this._dataAttribute
-        ? finder(e.target, {seedMinLength: 5, optimizedMinLength: optimizedMinLength, attr: (name, _value) => name === this._dataAttribute})
-        : finder(e.target, {seedMinLength: 5, optimizedMinLength: optimizedMinLength})
-
+        ? finder(e.target, { seedMinLength: 5, optimizedMinLength: optimizedMinLength, attr: (name, _value) => name === this._dataAttribute, className: this.filterClassName, idName: this.filterIdName })
+        : finder(e.target, { seedMinLength: 5, optimizedMinLength: optimizedMinLength, className: this.filterClassName, idName: this.filterIdName })
       const msg = {
         selector: selector,
         value: e.target.value,

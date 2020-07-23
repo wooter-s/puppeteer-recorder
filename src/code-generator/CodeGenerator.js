@@ -2,19 +2,28 @@ import domEvents from './dom-events-to-record'
 import pptrActions from './pptr-actions'
 import Block from './Block'
 
-const importPuppeteer = `const puppeteer = require('puppeteer');\n`
+// const importPuppeteer = `const puppeteer = require('puppeteer');\n`
 
 const header = `const browser = await puppeteer.launch()
 const page = await browser.newPage()`
 
 const footer = `await browser.close()`
 
-const wrappedHeader = `(async () => {
-  const browser = await puppeteer.launch()
-  const page = await browser.newPage()\n`
+// const wrappedHeader = `(async () => {
+//   const browser = await puppeteer.launch()
+//   const page = await browser.newPage()\n`
+//
+// const wrappedFooter = `  await browser.close()
+// })()`
 
-const wrappedFooter = `  await browser.close()
-})()`
+const wooterHeader = `
+import { Base } from "puppeteer-runner";
+
+export const NodeName =  async (base: Base) => {
+  const page = base.page;\n
+`
+
+const wooterFooter = `};`
 
 export const defaults = {
   wrapAsync: true,
@@ -38,18 +47,18 @@ export default class CodeGenerator {
   }
 
   generate (events) {
-    return importPuppeteer + this._getHeader() + this._parseEvents(events) + this._getFooter()
+    return this._getHeader() + this._parseEvents(events) + this._getFooter()
   }
 
   _getHeader () {
     console.debug(this._options)
-    let hdr = this._options.wrapAsync ? wrappedHeader : header
+    let hdr = this._options.wrapAsync ? wooterHeader : header
     hdr = this._options.headless ? hdr : hdr.replace('launch()', 'launch({ headless: false })')
     return hdr
   }
 
   _getFooter () {
-    return this._options.wrapAsync ? wrappedFooter : footer
+    return this._options.wrapAsync ? wooterFooter : footer
   }
 
   _parseEvents (events) {
@@ -81,9 +90,9 @@ export default class CodeGenerator {
         case pptrActions.GOTO:
           this._blocks.push(this._handleGoto(href, frameId))
           break
-        case pptrActions.VIEWPORT:
-          this._blocks.push((this._handleViewport(value.width, value.height)))
-          break
+        // case pptrActions.VIEWPORT:
+        //   this._blocks.push((this._handleViewport(value.width, value.height)))
+        //   break
         case pptrActions.NAVIGATION:
           this._blocks.push(this._handleWaitForNavigation())
           this._hasNavigation = true
@@ -146,10 +155,14 @@ export default class CodeGenerator {
 
   _handleClick (selector) {
     const block = new Block(this._frameId)
-    if (this._options.waitForSelectorOnClick) {
-      block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.waitForSelector('${selector}')` })
-    }
-    block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.click('${selector}')` })
+    // if (this._options.waitForSelectorOnClick) {
+    //   block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.waitForSelector('${selector}')` })
+    // }
+    // block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.click('${selector}')` })
+    block.addLine({
+      type: domEvents.CHANGE,
+      value: `await base.click('${selector}')`
+    })
     return block
   }
   _handleChange (selector, value) {
