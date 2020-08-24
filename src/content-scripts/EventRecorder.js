@@ -122,6 +122,8 @@ export default class EventRecorder {
       const msg = {
         selector: selector,
         value: e.target.value,
+        innerText: e.target.innerText,
+        placeholder: e.target.placeholder,
         tagName: e.target.tagName,
         action: e.type,
         keyCode: e.keyCode ? e.keyCode : null,

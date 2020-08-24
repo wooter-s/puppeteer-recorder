@@ -46,8 +46,8 @@ export default class CodeGenerator {
     this._hasNavigation = false
   }
 
-  generate (events) {
-    return this._getHeader() + this._parseEvents(events) + this._getFooter()
+  generate (events, isDeleteChildIndex = false) {
+    return this._getHeader() + this._parseEvents(events, isDeleteChildIndex) + this._getFooter()
   }
 
   _getHeader () {
@@ -61,14 +61,14 @@ export default class CodeGenerator {
     return this._options.wrapAsync ? wooterFooter : footer
   }
 
-  _parseEvents (events) {
+  _parseEvents (events, isDeleteChildIndex) {
     console.debug(`generating code for ${events ? events.length : 0} events`)
     let result = ''
 
     if (!events) return result
 
     for (let i = 0; i < events.length; i++) {
-      const { action, selector, value, href, keyCode, tagName, frameId, frameUrl } = events[i]
+      const { action, selector, value, href, keyCode, tagName, frameId, frameUrl, innerText, placeholder } = events[i]
 
       // we need to keep a handle on what frames events originate from
       this._setFrames(frameId, frameUrl)
@@ -80,7 +80,7 @@ export default class CodeGenerator {
           }
           break
         case 'click':
-          this._blocks.push(this._handleClick(selector, events))
+          this._blocks.push(this._handleClick(selector, innerText, placeholder, isDeleteChildIndex, events))
           break
         case 'change':
           if (tagName === 'SELECT') {
@@ -105,7 +105,10 @@ export default class CodeGenerator {
 
     if (this._hasNavigation && this._options.waitForNavigation) {
       console.debug('Adding navigationPromise declaration')
-      const block = new Block(this._frameId, { type: pptrActions.NAVIGATION_PROMISE, value: 'const navigationPromise = page.waitForNavigation()' })
+      const block = new Block(this._frameId, {
+        type: pptrActions.NAVIGATION_PROMISE,
+        value: 'const navigationPromise = page.waitForNavigation()'
+      })
       this._blocks.unshift(block)
     }
 
@@ -153,27 +156,73 @@ export default class CodeGenerator {
     return block
   }
 
-  _handleClick (selector) {
+  _handleClick (selector, innerText, placeholder, isDeleteChildIndex) {
     const block = new Block(this._frameId)
     // if (this._options.waitForSelectorOnClick) {
     //   block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.waitForSelector('${selector}')` })
     // }
     // block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.click('${selector}')` })
+
+    if (!isDeleteChildIndex) {
+      block.addLine({
+        type: domEvents.CHANGE,
+        value: `// ${selector} | ${innerText}\n  await base.click('${selector}')`
+      })
+      return block
+    }
+
+    const selectorDeleteChildIndex = selector.replace(/:nth-child\(\d+\)/g, '')
+    if (innerText) {
+      block.addLine({
+        type: domEvents.CHANGE,
+        value: `// ${selector}\n  await base.clickQueryWithText('${selectorDeleteChildIndex}','${innerText}')`
+      })
+      return block
+    }
+
+    if (placeholder) {
+      block.addLine({
+        type: domEvents.CHANGE,
+        value: `// ${selector}\\n  await base.click('${selectorDeleteChildIndex}[placeholder=${placeholder}]')`
+      })
+      return block
+    }
+
     block.addLine({
       type: domEvents.CHANGE,
       value: `await base.click('${selector}')`
     })
     return block
   }
+
+  // _handleClick (selector) {
+  //   const block = new Block(this._frameId)
+  //   // if (this._options.waitForSelectorOnClick) {
+  //   //   block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.waitForSelector('${selector}')` })
+  //   // }
+  //   // block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.click('${selector}')` })
+  //   block.addLine({
+  //     type: domEvents.CHANGE,
+  //     value: `await base.click('${selector}')`
+  //   })
+  //   return block
+  // }
   _handleChange (selector, value) {
-    return new Block(this._frameId, { type: domEvents.CHANGE, value: `await ${this._frame}.select('${selector}', '${value}')` })
+    return new Block(this._frameId, {
+      type: domEvents.CHANGE,
+      value: `await ${this._frame}.select('${selector}', '${value}')`
+    })
   }
+
   _handleGoto (href) {
     return new Block(this._frameId, { type: pptrActions.GOTO, value: `await ${this._frame}.goto('${href}')` })
   }
 
   _handleViewport (width, height) {
-    return new Block(this._frameId, { type: pptrActions.VIEWPORT, value: `await ${this._frame}.setViewport({ width: ${width}, height: ${height} })` })
+    return new Block(this._frameId, {
+      type: pptrActions.VIEWPORT,
+      value: `await ${this._frame}.setViewport({ width: ${width}, height: ${height} })`
+    })
   }
 
   _handleScreenshot (options) {
@@ -189,9 +238,13 @@ export default class CodeGenerator {
 
       block = new Block(this._frameId, {
         type: pptrActions.SCREENSHOT,
-        value: `await ${this._frame}.screenshot({ path: 'screenshot_${this._screenshotCounter}.png', clip: { x: ${options.x}, y: ${options.y}, width: ${options.width}, height: ${options.height} } })` })
+        value: `await ${this._frame}.screenshot({ path: 'screenshot_${this._screenshotCounter}.png', clip: { x: ${options.x}, y: ${options.y}, width: ${options.width}, height: ${options.height} } })`
+      })
     } else {
-      block = new Block(this._frameId, { type: pptrActions.SCREENSHOT, value: `await ${this._frame}.screenshot({ path: 'screenshot_${this._screenshotCounter}.png' })` })
+      block = new Block(this._frameId, {
+        type: pptrActions.SCREENSHOT,
+        value: `await ${this._frame}.screenshot({ path: 'screenshot_${this._screenshotCounter}.png' })`
+      })
     }
 
     this._screenshotCounter++
@@ -201,7 +254,7 @@ export default class CodeGenerator {
   _handleWaitForNavigation () {
     const block = new Block(this._frameId)
     if (this._options.waitForNavigation) {
-      block.addLine({type: pptrActions.NAVIGATION, value: `await navigationPromise`})
+      block.addLine({ type: pptrActions.NAVIGATION, value: `await navigationPromise` })
     }
     return block
   }

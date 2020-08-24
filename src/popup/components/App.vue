@@ -24,6 +24,9 @@
           <button class="btn btn-sm" @click="toggleRecord" :class="isRecording ? 'btn-danger' : 'btn-primary'">
             {{recordButtonText}}
           </button>
+          <button class="btn btn-sm" @click="generateCode" :class="isRecording ? 'btn-danger' : 'btn-primary'">
+            生成原始代码
+          </button>
           <button class="btn btn-sm btn-primary btn-outline-primary" @click="togglePause" v-show="isRecording">
             {{pauseButtonText}}
           </button>
@@ -89,12 +92,16 @@ export default {
     methods: {
       toggleRecord () {
         if (this.isRecording) {
-          this.stop()
+          this.stop(true)
         } else {
           this.start()
         }
         this.isRecording = !this.isRecording
         this.storeState()
+      },
+      generateCode () {
+        this.stop()
+        // this.storeState()
       },
       togglePause () {
         if (this.isPaused) {
@@ -112,7 +119,7 @@ export default {
         console.debug('start recorder')
         this.bus.postMessage({ action: actions.START })
       },
-      stop () {
+      stop (isDeleteChildIndex = false) {
         this.trackEvent('Stop')
         console.debug('stop recorder')
         this.bus.postMessage({ action: actions.STOP })
@@ -120,12 +127,12 @@ export default {
         this.$chrome.storage.local.get(['recording', 'options'], ({ recording, options }) => {
           console.debug('loaded recording', recording)
           console.debug('loaded options', options)
-
+          console.log('------> recording', recording)
           this.recording = recording
           const codeOptions = options ? options.code : {}
 
           const codeGen = new CodeGenerator(codeOptions)
-          this.code = codeGen.generate(this.recording)
+          this.code = codeGen.generate(this.recording, isDeleteChildIndex)
           this.showResultsTab = true
           this.storeState()
         })
