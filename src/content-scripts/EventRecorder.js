@@ -98,15 +98,49 @@ export default class EventRecorder {
 
   filterClassName = (className) => {
     if (className && (
-      className.includes('active') || className.includes('__') || className.includes('selected') || className.includes('focused')
+      className.includes('active') ||
+      className.includes('__') ||
+      className.includes('selected') ||
+      className.includes('focused') ||
+      className.includes('open') ||
+      className.includes('close')
     )) {
       return false
     }
+
+    if (className && !className.includes('ant')) {
+      return false
+    }
+
     return true
   }
 
   // id 都不要，因为有些id写的不规范，不能直接调用querySelector
   filterIdName = () => false;
+
+  _getParentInnerTextAndSelector = (element) => {
+    if (!element) {
+      return {
+        parentInnerText: null,
+        parentSelector: null
+      }
+    }
+    const parent = element.parentElement
+    if (!parent) {
+      return {
+        parentInnerText: null,
+        parentSelector: null
+      }
+    }
+    if (parent && parent.innerText) {
+      return {
+        parentInnerText: parent.innerText.replace(/\n/g, ' ').trim(),
+        parentSelector: null
+      }
+    }
+
+    return this._getParentInnerTextAndSelector(parent)
+  }
 
   _recordEvent (e) {
     if (this._previousEvent && this._previousEvent.timeStamp === e.timeStamp) return
@@ -119,11 +153,18 @@ export default class EventRecorder {
       const selector = this._dataAttribute
         ? finder(e.target, { seedMinLength: 5, optimizedMinLength: optimizedMinLength, attr: (name, _value) => name === this._dataAttribute, className: this.filterClassName, idName: this.filterIdName })
         : finder(e.target, { seedMinLength: 5, optimizedMinLength: optimizedMinLength, className: this.filterClassName, idName: this.filterIdName })
+      const { parentInnerText, parentSelector } = this._getParentInnerTextAndSelector(e.target)
+      let innerText = e.target.innerText
+      if (innerText) {
+        innerText = innerText.replace(/\n/g, ' ').trim()
+      }
       const msg = {
         selector: selector,
         value: e.target.value,
-        innerText: e.target.innerText,
+        innerText,
         placeholder: e.target.placeholder,
+        parentInnerText,
+        parentSelector,
         tagName: e.target.tagName,
         action: e.type,
         keyCode: e.keyCode ? e.keyCode : null,
@@ -131,7 +172,9 @@ export default class EventRecorder {
         coordinates: EventRecorder._getCoordinates(e)
       }
       this._sendMessage(msg)
-    } catch (e) {}
+    } catch (e) {
+      console.error('------> _recordEvent error', e)
+    }
   }
 
   _getEventLog () {

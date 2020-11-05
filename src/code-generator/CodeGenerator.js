@@ -1,6 +1,7 @@
 import domEvents from './dom-events-to-record'
 import pptrActions from './pptr-actions'
 import Block from './Block'
+import transformSelectorToAntdSelctor from './antdCodeTransfer'
 
 // const importPuppeteer = `const puppeteer = require('puppeteer');\n`
 
@@ -61,6 +62,27 @@ export default class CodeGenerator {
     return this._options.wrapAsync ? wooterFooter : footer
   }
 
+  _displayStringLimit (string) {
+    if (!string) {
+      return ''
+    }
+    if (string.length > 50) {
+      return `${string.slice(0, 50)} ...`
+    }
+    return string
+  }
+  _generatorComment ({ innerText, parentInnerText, placeholder }) {
+    if (innerText) {
+      return `// 节点内容:${this._displayStringLimit(innerText)}\n`
+    }
+    if (placeholder) {
+      return `// 节点提示:${placeholder}\n`
+    }
+    if (parentInnerText) {
+      return `// 父级内容:${this._displayStringLimit(parentInnerText)}\n`
+    }
+    return ''
+  }
   _parseEvents (events, isDeleteChildIndex) {
     console.debug(`generating code for ${events ? events.length : 0} events`)
     let result = ''
@@ -68,7 +90,7 @@ export default class CodeGenerator {
     if (!events) return result
 
     for (let i = 0; i < events.length; i++) {
-      const { action, selector, value, href, keyCode, tagName, frameId, frameUrl, innerText, placeholder } = events[i]
+      const { action, selector, value, href, keyCode, tagName, frameId, frameUrl, innerText, placeholder, parentInnerText, parentSelector } = events[i]
 
       // we need to keep a handle on what frames events originate from
       this._setFrames(frameId, frameUrl)
@@ -80,7 +102,15 @@ export default class CodeGenerator {
           }
           break
         case 'click':
-          this._blocks.push(this._handleClick(selector, innerText, placeholder, isDeleteChildIndex, events))
+          // dbclick delete repeat
+          if (events[i + 2] && events[i + 2]['action'] === 'dblclick') {
+            i++
+            break
+          }
+          this._blocks.push(this._handleClick(selector, innerText, placeholder, parentSelector, parentInnerText, isDeleteChildIndex, events))
+          break
+        case 'dblclick':
+          this._blocks.push(this._handleDbClick(selector, innerText, placeholder, parentInnerText, isDeleteChildIndex, events))
           break
         case 'change':
           if (tagName === 'SELECT') {
@@ -156,45 +186,62 @@ export default class CodeGenerator {
     return block
   }
 
-  _handleClick (selector, innerText, placeholder, isDeleteChildIndex) {
+  _handleClick (selector, innerText, placeholder, parentSelector, parentInnerText, isDeleteChildIndex) {
     const block = new Block(this._frameId)
     // if (this._options.waitForSelectorOnClick) {
     //   block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.waitForSelector('${selector}')` })
     // }
     // block.addLine({ type: domEvents.CLICK, value: `await ${this._frame}.click('${selector}')` })
 
-    if (!isDeleteChildIndex) {
-      block.addLine({
-        type: domEvents.CHANGE,
-        value: `// ${selector} | ${innerText}\n  await base.click('${selector}')`
-      })
-      return block
-    }
+    // if (!isDeleteChildIndex) {
+    //   block.addLine({
+    //     type: domEvents.CLICK,
+    //     value: `// ${selector} | ${innerText}\n  await base.click('${transformSelectorToAntdSelctor(selector)}')`
+    //   })
+    //   return block
+    // }
 
-    const selectorDeleteChildIndex = selector.replace(/:nth-child\(\d+\)/g, '')
+    const selectorDeleteChildIndex = transformSelectorToAntdSelctor(selector)
+
     if (innerText) {
       block.addLine({
-        type: domEvents.CHANGE,
-        value: `// ${selector}\n  await base.clickQueryWithText('${selectorDeleteChildIndex}','${innerText}')`
+        type: domEvents.CLICK,
+        // value: `// ${selector}\n${this._generatorComment({ innerText })}  await base.click('${selectorDeleteChildIndex}','${innerText}')`,
+        value: `${this._generatorComment({ innerText })}  await base.click('${selectorDeleteChildIndex}')`
       })
       return block
     }
 
     if (placeholder) {
       block.addLine({
-        type: domEvents.CHANGE,
-        value: `// ${selector}\\n  await base.click('${selectorDeleteChildIndex}[placeholder=${placeholder}]')`
+        type: domEvents.CLICK,
+        value: `${this._generatorComment({ placeholder })}  await base.click('${selectorDeleteChildIndex}[placeholder=${placeholder}]')`
+      })
+      return block
+    }
+
+    if (parentInnerText) {
+      block.addLine({
+        type: domEvents.CLICK,
+        // value: `// ${selector}\n${this._generatorComment({ parentInnerText })}  await base.clickChildWithText('${transformSelectorToAntdSelctor(parentSelector)}', '${parentInnerText}', '${selectorDeleteChildIndex}')`
+        value: `${this._generatorComment({ parentInnerText })}  await base.click('${selectorDeleteChildIndex}')`
       })
       return block
     }
 
     block.addLine({
-      type: domEvents.CHANGE,
-      value: `await base.click('${selector}')`
+      type: domEvents.CLICK,
+      value: `${this._generatorComment({ innerText, parentInnerText })}  await base.click('${selector}')`
     })
     return block
   }
 
+  _handleDbClick (selector, innerText, placeholder, parentInnerText, isDeleteChildIndex, events) {
+    return new Block(this._frameId, {
+      type: domEvents.DBLCLICK,
+      value: `${this._generatorComment({ innerText, parentInnerText })}  await base.hover('${selector}')`
+    })
+  }
   // _handleClick (selector) {
   //   const block = new Block(this._frameId)
   //   // if (this._options.waitForSelectorOnClick) {

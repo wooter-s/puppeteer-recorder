@@ -24,9 +24,9 @@
           <button class="btn btn-sm" @click="toggleRecord" :class="isRecording ? 'btn-danger' : 'btn-primary'">
             {{recordButtonText}}
           </button>
-          <button class="btn btn-sm" @click="generateCode" :class="isRecording ? 'btn-danger' : 'btn-primary'">
-            生成原始代码
-          </button>
+<!--          <button class="btn btn-sm" @click="generateCode" :class="isRecording ? 'btn-danger' : 'btn-primary'">-->
+<!--            生成原始代码-->
+<!--          </button>-->
           <button class="btn btn-sm btn-primary btn-outline-primary" @click="togglePause" v-show="isRecording">
             {{pauseButtonText}}
           </button>
